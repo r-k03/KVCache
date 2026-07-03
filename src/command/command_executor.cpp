@@ -88,12 +88,12 @@ CommandResponse CommandExecutor::HandleIncr(const ParsedCommand& command) {
         increment_value = *parsed_increment;
     }
 
-    if ((increment_value > 0 &&
-         *current_value > std::numeric_limits<long long>::max() - increment_value) ||
-        (increment_value < 0 &&
-         *current_value < std::numeric_limits<long long>::min() - increment_value)) {
-        return {false, "ERROR increment would overflow"};
-    }
+    bool overflow = false;
+    if ((*current_value ^ increment_value) < 0) overflow = false;
+    else if (*current_value > 0)
+        overflow = increment_value > std::numeric_limits<long long>::max() - *current_value;
+    else overflow = increment_value < std::numeric_limits<long long>::min() - *current_value;
+    if (overflow) return {false, "ERROR increment would overflow"};
 
     const long long updated_value = *current_value + increment_value;
     key_it->second = std::to_string(updated_value);
