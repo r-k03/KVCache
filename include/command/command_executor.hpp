@@ -1,6 +1,7 @@
 #pragma once
 
 #include "command/command_types.hpp"
+#include "storage/thread_safe_kv_store.hpp"
 
 #include <string>
 #include <unordered_map>
@@ -9,7 +10,7 @@ namespace kvcache::command {
 
 class CommandExecutor {
 public:
-    CommandExecutor();
+    explicit CommandExecutor(storage::ThreadSafeKVStore& store);
 
     CommandResponse Execute(const ParsedCommand& command);
 
@@ -25,7 +26,7 @@ private:
     CommandResponse HandleQuit(const ParsedCommand& command);
 
     std::unordered_map<std::string, Handler> handlers_;
-    KeyValueStore store_;
+    storage::ThreadSafeKVStore& store_;
 };
 
 }  // namespace kvcache::command

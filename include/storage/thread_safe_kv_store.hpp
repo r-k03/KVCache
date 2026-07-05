@@ -8,6 +8,18 @@
 
 namespace kvcache::storage {
 
+enum class IncrementStatus {
+    kOk,
+    kNotFound,
+    kNotInteger,
+    kOverflow,
+};
+
+struct IncrementResult {
+    IncrementStatus status{IncrementStatus::kNotFound};
+    std::string value;
+};
+
 class ThreadSafeKVStore {
 public:
     ThreadSafeKVStore() = default;
@@ -16,6 +28,7 @@ public:
     std::optional<std::string> Get(std::string_view key) const;
     bool Del(std::string_view key);
     bool Exists(std::string_view key) const;
+    IncrementResult Increment(std::string_view key, long long amount);
 
 private:
     mutable std::shared_mutex mutex_;

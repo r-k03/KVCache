@@ -1,7 +1,6 @@
 #include "command/command_executor.hpp"
 
 #include <charconv>
-#include <limits>
 #include <optional>
 #include <string_view>
 
@@ -26,7 +25,7 @@ std::optional<long long> ParseStrictInteger(std::string_view input) {
 
 }  // namespace
 
-CommandExecutor::CommandExecutor()
+CommandExecutor::CommandExecutor(storage::ThreadSafeKVStore& store)
     : handlers_{
           {"set", &CommandExecutor::HandleSet},
           {"get", &CommandExecutor::HandleGet},
@@ -35,7 +34,8 @@ CommandExecutor::CommandExecutor()
           {"incr", &CommandExecutor::HandleIncr},
           {"exit", &CommandExecutor::HandleExit},
           {"quit", &CommandExecutor::HandleQuit},
-      } {}
+      },
+      store_(store) {}
 
 CommandResponse CommandExecutor::Execute(const ParsedCommand& command) {
     const auto it = handlers_.find(command.name);
@@ -47,37 +47,28 @@ CommandResponse CommandExecutor::Execute(const ParsedCommand& command) {
 }
 
 CommandResponse CommandExecutor::HandleSet(const ParsedCommand& command) {
-    store_[command.args[0]] = command.args[1];
+    store_.Set(command.args[0], command.args[1]);
     return {true, "OK"};
 }
 
 CommandResponse CommandExecutor::HandleGet(const ParsedCommand& command) {
-    const auto it = store_.find(command.args[0]);
-    if (it == store_.end()) {
+    const auto value = store_.Get(command.args[0]);
+    if (!value.has_value()) {
         return {true, "(nil)"};
     }
-    return {true, it->second};
+    return {true, *value};
 }
 
 CommandResponse CommandExecutor::HandleDel(const ParsedCommand& command) {
-    return {true, store_.erase(command.args[0]) == 1 ? "1" : "0"};
+    return {true, store_.Del(command.args[0]) ? "1" : "0"};
 }
 
 CommandResponse CommandExecutor::HandleExists(const ParsedCommand& command) {
-    return {true, store_.contains(command.args[0]) ? "1" : "0"};
+    return {true, store_.Exists(command.args[0]) ? "1" : "0"};
 }
 
 CommandResponse CommandExecutor::HandleIncr(const ParsedCommand& command) {
     const std::string& key = command.args[0];
-    const auto key_it = store_.find(key);
-    if (key_it == store_.end()) {
-        return {false, "ERROR key does not exist"};
-    }
-
-    const auto current_value = ParseStrictInteger(key_it->second);
-    if (!current_value.has_value()) {
-        return {false, "ERROR value is not an integer"};
-    }
 
     long long increment_value = 1;
     if (command.args.size() == 2) {
@@ -88,16 +79,17 @@ CommandResponse CommandExecutor::HandleIncr(const ParsedCommand& command) {
         increment_value = *parsed_increment;
     }
 
-    bool overflow = false;
-    if ((*current_value ^ increment_value) < 0) overflow = false;
-    else if (*current_value > 0)
-        overflow = increment_value > std::numeric_limits<long long>::max() - *current_value;
-    else overflow = increment_value < std::numeric_limits<long long>::min() - *current_value;
-    if (overflow) return {false, "ERROR increment would overflow"};
-
-    const long long updated_value = *current_value + increment_value;
-    key_it->second = std::to_string(updated_value);
-    return {true, key_it->second};
+    const auto result = store_.Increment(key, increment_value);
+    if (result.status == storage::IncrementStatus::kNotFound) {
+        return {false, "ERROR key does not exist"};
+    }
+    if (result.status == storage::IncrementStatus::kNotInteger) {
+        return {false, "ERROR value is not an integer"};
+    }
+    if (result.status == storage::IncrementStatus::kOverflow) {
+        return {false, "ERROR increment would overflow"};
+    }
+    return {true, result.value};
 }
 
 CommandResponse CommandExecutor::HandleExit(const ParsedCommand&) {

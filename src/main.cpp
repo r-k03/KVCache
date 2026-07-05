@@ -1,13 +1,15 @@
 #include "command/command_table.hpp"
 #include "command/command_executor.hpp"
 #include "command/line_parser.hpp"
+#include "storage/thread_safe_kv_store.hpp"
 
 #include <iostream>
 #include <string>
 
 int main() {
     const kvcache::command::CommandTable command_table;
-    kvcache::command::CommandExecutor command_executor;
+    kvcache::storage::ThreadSafeKVStore store;
+    kvcache::command::CommandExecutor command_executor(store);
     const kvcache::command::LineParser parser(command_table);
     bool exited_by_command = false;
 

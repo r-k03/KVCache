@@ -10,7 +10,8 @@ CLI_SRCS := \
 	src/main.cpp \
 	src/command/command_executor.cpp \
 	src/command/command_table.cpp \
-	src/command/line_parser.cpp
+	src/command/line_parser.cpp \
+	src/storage/thread_safe_kv_store.cpp
 
 CLI_OBJS := $(CLI_SRCS:src/%.cpp=$(BUILD_DIR)/%.o)
 
