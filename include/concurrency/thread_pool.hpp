@@ -1,8 +1,13 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <cstddef>
 #include <functional>
+#include <mutex>
+#include <queue>
+#include <thread>
+#include <vector>
 
 namespace kvcache::concurrency {
 
@@ -19,8 +24,14 @@ public:
     bool Submit(std::function<void()> task);
 
 private:
+    void WorkerLoop();
+
     std::size_t thread_count_;
     std::atomic<bool> running_{false};
+    std::mutex mutex_;
+    std::condition_variable cv_;
+    std::queue<std::function<void()>> tasks_;
+    std::vector<std::thread> workers_;
 };
 
 }  // namespace kvcache::concurrency

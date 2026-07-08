@@ -5,6 +5,7 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/system/error_code.hpp>
 
 namespace kvcache::networking {
 
@@ -21,10 +22,14 @@ public:
     void Stop();
 
 private:
+    void StartAcceptLoop();
+    void OnAccept(boost::system::error_code error, boost::asio::ip::tcp::socket socket);
+
     boost::asio::io_context& io_context_;
     boost::asio::ip::tcp::acceptor acceptor_;
     server::RequestDispatcher& dispatcher_;
     concurrency::ThreadPool& worker_pool_;
+    bool running_{false};
 };
 
 }  // namespace kvcache::networking

@@ -37,6 +37,7 @@ build/
 *.swp
 
 vcpkg_installed/
+boost/
 
 testing/
 .cache/

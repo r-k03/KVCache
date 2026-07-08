@@ -1,5 +1,10 @@
 #include "networking/tcp_server.hpp"
 
+#include "networking/tcp_session.hpp"
+
+#include <boost/asio/post.hpp>
+#include <utility>
+
 namespace kvcache::networking {
 
 TcpServer::TcpServer(
@@ -14,14 +19,53 @@ TcpServer::TcpServer(
       worker_pool_(worker_pool) {}
 
 void TcpServer::Start() {
-    (void)io_context_;
-    (void)dispatcher_;
-    (void)worker_pool_;
+    if (running_) {
+        return;
+    }
+    running_ = true;
+    StartAcceptLoop();
 }
 
 void TcpServer::Stop() {
-    boost::system::error_code ignored_error;
-    acceptor_.close(ignored_error);
+    if (!running_) {
+        return;
+    }
+    running_ = false;
+
+    boost::asio::post(io_context_, [this]() {
+        if (!acceptor_.is_open()) {
+            return;
+        }
+        boost::system::error_code ignored_error;
+        acceptor_.cancel(ignored_error);
+        acceptor_.close(ignored_error);
+    });
+}
+
+void TcpServer::StartAcceptLoop() {
+    if (!running_ || !acceptor_.is_open()) {
+        return;
+    }
+    acceptor_.async_accept([this](boost::system::error_code error, boost::asio::ip::tcp::socket socket) {
+        OnAccept(error, std::move(socket));
+    });
+}
+
+void TcpServer::OnAccept(boost::system::error_code error, boost::asio::ip::tcp::socket socket) {
+    if (!running_) {
+        return;
+    }
+
+    if (!error) {
+        auto session = std::make_shared<TcpSession>(std::move(socket), dispatcher_, worker_pool_);
+        session->Start();
+    } else if (error == boost::asio::error::operation_aborted) {
+        return;
+    }
+
+    if (running_) {
+        StartAcceptLoop();
+    }
 }
 
 }  // namespace kvcache::networking
